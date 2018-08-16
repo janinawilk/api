@@ -8,6 +8,7 @@ class UserAuthenticator
   end
 
   def perform
+    raise AuthenticationError if @authentication_code.blank?
     github_token = client
       .exchange_code_for_token(@authentication_code)
     raise AuthenticationError if github_token.try(:error).present?

@@ -9,8 +9,9 @@ class Token < ApplicationRecord
 
   def set_token
     loop do
-      break if token.present? &&
-        !self.class.exists?(token: token)
+      unique_token = !self.class.where.not(id: id)
+        .exists?(token: token)
+      break if token.present? && unique_token
       self.token = SecureRandom.hex
     end
   end
