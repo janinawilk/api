@@ -19,6 +19,13 @@ RSpec.describe Article, type: :model do
       expect(article.errors.messages[:content])
         .to include("can't be blank")
     end
+
+    it 'should validate uniqueness of slug' do
+      article1 = create :article
+      article2 = build :article, slug: article1.slug
+      expect(article2).not_to be_valid
+      expect(article2.errors.messages[:slug]).to include('has already been taken')
+    end
   end
 
   describe '.recent' do
@@ -28,6 +35,13 @@ RSpec.describe Article, type: :model do
       expect(described_class.recent).to eq([article_2, article_1])
       article_2.update_column :created_at, article_1.created_at-1.hour
       expect(described_class.recent).to eq([article_1, article_2.reload])
+    end
+  end
+
+  describe '#generate slug' do
+    it 'shuld generate after creating article' do
+      article = create :article, title: 'Some title'
+      expect(article.slug).to eq("some-title-#{article.id}")      
     end
   end
 end

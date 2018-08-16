@@ -4,18 +4,18 @@ class ArticlesController < ApplicationController
   def index
     @articles = Article.recent.
     page(params[:page]).per(params[:per_page])
-    render json: @articles
+    render json: @articles, include: ArticleSerializer::INCLUDED
   end
 
   def show
     @article = Article.find(params[:id])
-    render json: @article
+    render json: @article, include: ArticleSerializer::INCLUDED
   end
 
   def create
-    @article = Article.new(article_params)
+    @article = current_user.articles.build(article_params)
     if @article.save
-      render json: @article, status: :created
+      render json: @article, status: :created, include: ArticleSerializer::INCLUDED
     else
       render json: @article, adapter: :json_api,
         serializer: ActiveModel::Serializer::ErrorSerializer,

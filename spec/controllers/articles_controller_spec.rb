@@ -82,7 +82,7 @@ describe ArticlesController do
 
     context 'when user authorized' do
       let(:user) { create :user }
-      let(:token) { create :token }
+      let(:token) { create :token, user: user }
 
       before { request.headers['authorization'] = "Bearer #{token.token}" }
 
@@ -123,17 +123,38 @@ describe ArticlesController do
 
         it 'should create an article' do
           expect(Article.exists?(title: 'Sample title')).to be_falsey
-          expect{ post :create, params: valid_article_attributes }.to change{ Article.count}.by(1)
+          expect{ post :create, params: valid_article_attributes.merge(user: user) }.to change{ Article.count}.by(1)
           article = Article.find_by(title: 'Sample title')
           expect(article).to be_present
           expect(article.content).to eq('Sample content')
+          expect(article.user).to eq(user)
         end
 
         it 'should include article data in response' do
           post :create, params: valid_article_attributes
           expect(json['data']['attributes']).to include(
-            valid_article_attributes[:data][:attributes].stringify_keys
+            valid_article_attributes[:data][:attributes]
+              .stringify_keys
           )
+        end
+
+        it 'should have user information in relationships' do
+          post :create, params: valid_article_attributes
+          expect(json['data']['relationships']['user']).to include(
+            {
+              'data' => { 'id' => user.id.to_s, 'type' => 'users' }
+            }
+          )
+          user_data = json['included'].detect do |data|
+            data['type']  == 'users'
+          end
+          expect(user_data['id']).to eq(user.id.to_s)
+          expect(user_data['attributes']).to include({
+            'login' => user.login,
+            'avatar-url' => user.avatar_url,
+            'name' => user.name,
+            'url' => user.url
+            })
         end
       end
     end
