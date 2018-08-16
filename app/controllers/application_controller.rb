@@ -3,7 +3,10 @@ class ApplicationController < ActionController::API
     with: :authorization_error
 
   class AuthorizationError < StandardError; end
+  class AccessDeniedError < StandardError; end
+
   rescue_from AuthorizationError, with: :authorization_error
+  rescue_from AccessDeniedError, with: :forbidden_error
 
   before_action :restrict_access
 
@@ -24,6 +27,16 @@ class ApplicationController < ActionController::API
 
   def current_user
     @current_user = access_token&.user
+  end
+
+  def forbidden_error
+    error = {
+      "status" => "403",
+      "source" => { "pointer" => "/code" },
+      "title" =>  "Access denied",
+      "detail" => "You have no rights to access this resource"
+    }
+    render json: { errors: [error] }, status: :forbidden
   end
 
   def authorization_error

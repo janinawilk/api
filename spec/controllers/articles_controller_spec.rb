@@ -159,4 +159,203 @@ describe ArticlesController do
       end
     end
   end
+
+  describe 'PUT :update' do
+    context 'when user is not authorized' do
+      let(:authorization_error) {
+        {
+          "status" => "401",
+          "source" => { "pointer" => "/code" },
+          "title" =>  "Authorization failed",
+          "detail" => "The code parameter or authorization header is invalid"
+        }
+      }
+
+      it 'should have 401 http status' do
+        put :update, params: { id: 1 }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it 'should return error info in the response body' do
+        put :update, params: { id: 1 }
+        expect(json['errors']).to include(authorization_error)
+      end
+    end
+
+    context 'when user authorized' do
+      let(:user) { create :user }
+      let(:token) { create :token, user: user }
+      let(:article) { create :article, user: user }
+
+      let(:valid_article_attributes) do
+        { data: { attributes: { title: 'Sample title', content: 'Sample content' } } }
+      end
+
+      let(:forbidden_error) {
+        {
+          "status" => "403",
+          "source" => { "pointer" => "/code" },
+          "title" =>  "Access denied",
+          "detail" => "You have no rights to access this resource"
+        }
+      }
+
+      before { request.headers['authorization'] = "Bearer #{token.token}" }
+
+      context 'when request invalid' do
+        let(:invalid_article_attributes) do
+          { data: { attributes: { title: '', content: '' } } }
+        end
+
+        it 'should return 422 http status if article is invalid' do
+          put :update, params: invalid_article_attributes
+            .merge(id: article.id)
+          expect(response).to have_http_status(:unprocessable_entity)
+        end
+
+        it 'should include error information about invalid attributes' do
+          put :update, params: invalid_article_attributes
+            .merge(id: article.id)
+          expect(json['errors'].length).to eq(2)
+          expect(json['errors']).to contain_exactly(
+            {
+              'source' => { 'pointer' => '/data/attributes/title' },
+              'detail' => "can't be blank"
+            },
+            {
+              'source' => { 'pointer' => '/data/attributes/content' },
+              'detail' => "can't be blank"
+            }
+          )
+        end
+      end
+
+      context 'when request valid' do
+        it 'should return 204 http status' do
+          put :update, params: valid_article_attributes
+            .merge(id: article.id)
+          expect(response).to have_http_status(:no_content)
+        end
+
+        it 'should have no content' do
+          put :update, params: valid_article_attributes.merge(id: article.id)
+          expect(response.body).to be_empty
+        end
+
+        it 'should update owned articles' do
+          put :update, params: valid_article_attributes.merge(id: article.id)
+          article.reload
+          expect(article.title).to eq('Sample title')
+          expect(article.content).to eq('Sample content')
+        end
+      end
+
+      context 'when trying to update not owned article' do
+        let(:other_article) { create :article, title: 'Old title', content: 'Old content' }
+
+        it 'should have 403 http status' do
+          put :update, params: { id: other_article.id}
+          expect(response).to have_http_status(:forbidden)
+        end
+
+        it 'should return error info in response body' do
+          put :update, params: { id: 1 }
+          expect(json['errors'][0]).to eq(forbidden_error)
+        end
+
+        it 'should not update not owned articles' do
+          put :update, params: valid_article_attributes.merge(
+            { id: other_article.id }
+          )
+          other_article.reload
+          expect(other_article.title).to eq('Old title')
+          expect(other_article.content).to eq('Old content')
+        end
+      end
+    end
+  end
+
+
+  describe 'DELETE :destroy' do
+    context 'when user is not authorized' do
+      let(:authorization_error) {
+        {
+          "status" => "401",
+          "source" => { "pointer" => "/code" },
+          "title" =>  "Authorization failed",
+          "detail" => "The code parameter or authorization header is invalid"
+        }
+      }
+
+      it 'should have 401 http status' do
+        delete :destroy, params: { id: 1 }
+        expect(response).to have_http_status(:unauthorized)
+      end
+
+      it 'should return error info in the response body' do
+        delete :destroy, params: { id: 1 }
+        expect(json['errors']).to include(authorization_error)
+      end
+    end
+
+    context 'when user authorized' do
+      let(:user) { create :user }
+      let(:token) { create :token, user: user }
+      let(:article) { create :article, user: user }
+
+      let(:forbidden_error) {
+        {
+          "status" => "403",
+          "source" => { "pointer" => "/code" },
+          "title" =>  "Access denied",
+          "detail" => "You have no rights to access this resource"
+        }
+      }
+
+      before { request.headers['authorization'] = "Bearer #{token.token}" }
+
+      context 'when destroys own article' do
+        before { article }
+
+        it 'should return 204 http status' do
+          delete :destroy, params: { id: article.id }
+          expect(response).to have_http_status(:no_content)
+        end
+
+        it 'should have no content' do
+          delete :destroy, params: { id: article.id }
+          expect(response.body).to be_empty
+        end
+
+        it 'should destroy owned articles' do
+          article
+          expect{delete :destroy, params: { id: article.id }}
+            .to change { Article.count }.by(-1)
+
+        end
+      end
+
+      context 'when trying to destroy not owned article' do
+        let(:other_article) { create :article }
+
+        before { other_article }
+
+        it 'should have 403 http status' do
+          delete :destroy, params: { id: other_article.id}
+          expect(response).to have_http_status(:forbidden)
+        end
+
+        it 'should return error info in response body' do
+          delete :destroy, params: { id: other_article.id }
+          expect(json['errors'][0]).to eq(forbidden_error)
+        end
+
+        it 'should not destroy not owned articles' do
+          expect{delete :destroy, params: { id: other_article.id }}
+            .not_to change { Article.count }
+          expect(Article.exists?(id: other_article.id))
+        end
+      end
+    end
+  end
 end
