@@ -5,6 +5,7 @@ class Article < ApplicationRecord
   validates :slug, uniqueness: true
 
   belongs_to :user
+  has_many :comments, dependent: :destroy
 
   after_create :generate_slug
 
